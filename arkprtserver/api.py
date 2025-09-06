@@ -19,6 +19,7 @@ api_routes = aiohttp.web.RouteTableDef()
 
 def format_blackboard(string: str, blackboard: typing.Mapping[str, object]) -> str:
     """Format an object that uses arknight's 'blackboard' templating."""
+    return string
 
     def replacer(match: re.Match[str]) -> str:
         key, frm = match[1], match[2]

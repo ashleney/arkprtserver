@@ -28,6 +28,26 @@ routes = aiohttp.web.RouteTableDef()
 env = jinja2.Environment(loader=jinja2.PackageLoader("arkprtserver"), autoescape=True, extensions=["jinja2.ext.do"])
 
 network = arkprts.NetworkSession(default_server="en")
+arkprts.assets.git.LANGUAGE_REPOSITORIES = {
+    "cn": (("Kengxxiao/ArknightsGameData", "ArknightsGameData", "master"), "ArknightsGameData/zh_CN"),
+    "bili": (("Kengxxiao/ArknightsGameData", "ArknightsGameData", "master"), "ArknightsGameData/zh_CN"),
+    "en": (
+        ("ArknightsAssets/ArknightsGameData", "ArknightsAssets_ArknightsGameData", "master"),
+        "ArknightsAssets_ArknightsGameData/en",
+    ),
+    "jp": (
+        ("ArknightsAssets/ArknightsGameData", "ArknightsAssets_ArknightsGameData", "master"),
+        "ArknightsAssets_ArknightsGameData/jp",
+    ),
+    "kr": (
+        ("ArknightsAssets/ArknightsGameData", "ArknightsAssets_ArknightsGameData", "master"),
+        "ArknightsAssets_ArknightsGameData/kr",
+    ),
+    "tw": (
+        ("ArknightsAssets/ArknightsGamedata", "ArknightsAssets_ArknightsGamedata", "master"),
+        "ArknightsAssets_ArknightsGamedata/tw",
+    ),
+}
 client = arkprts.Client(
     assets=arkprts.GitAssets(default_server="en"),
     network=network,
@@ -163,14 +183,15 @@ def _operator_to_id(name: str) -> str:
 
 async def get_banner_operators() -> typing.Mapping[str, typing.Sequence[str]]:
     """Get a mapping of banner IDs to banner operators. Assumes client has loaded gamedata."""
-    pagelocs = ["Headhunting/Banners"] + [f"Headhunting/Banners/Former-{i}" for i in (2024, 2023, 2022, 2021, 2020)]
+    pagelocs = ["Headhunting/Banners"] + [f"Headhunting/Banners/Former-{i}" for i in (2025, 2024, 2023, 2022, 2021, 2020)]
     pages = await asyncio.gather(*(_scrape_wikigg(i) for i in pagelocs))
 
     wikibanners: typing.Sequence[typing.Mapping[str, typing.Any]] = []
     for page in pages:
-        for match in re.finditer(r"\{\{Banners cell\|(.+?)\}\}", page):
-            arguments: typing.Mapping[str, str] = dict(i.split("=", 1) for i in match[1].split("|"))
-            dates = (arguments.get("global") or arguments["date"]).split(" &ndash; ")
+        for match in re.finditer(r"\{\{Banners cell\s*\|(.+?)\}\}", page, re.DOTALL):
+            arguments: typing.Mapping[str, str] = dict([j.strip() for j in i.split("=", 1)] for i in match[1].split("|"))
+            if "name" not in arguments:
+                continue
             wikioperators: typing.Sequence[str] = arguments["operators"].split(",") if "operators" in arguments else []
             if arguments.get("type") == "linkup":
                 wikioperators = wikioperators[1:]
@@ -184,8 +205,8 @@ async def get_banner_operators() -> typing.Mapping[str, typing.Sequence[str]]:
                 {
                     "type": arguments.get("type", "standard"),
                     "name": arguments["name"],
-                    "start": datetime.datetime.strptime(dates[0], "%B %d, %Y").timestamp(),  # noqa: DTZ007
-                    "end": datetime.datetime.strptime(dates[1], "%B %d, %Y").timestamp(),  # noqa: DTZ007
+                    "start": datetime.datetime.strptime(arguments["globalstart"], "%Y/%m/%d").timestamp(),  # noqa: DTZ007
+                    "end": datetime.datetime.strptime(arguments["globalend"], "%Y/%m/%d").timestamp(),  # noqa: DTZ007
                     "operators": wikioperators,
                 },
             )
@@ -249,7 +270,8 @@ async def startup_gamedata(app: aiohttp.web.Application) -> None:
         await client.assets.update_assets()
 
     env.globals["announcements"] = await client.network.request("an")  # type: ignore
-    env.globals["preannouncement"] = await client.network.request("prean")  # type: ignore
+    # env.globals["preannouncement"] = await client.network.request("prean")  # type: ignore
+    env.globals["preannouncement"] = []  # type: ignore
     env.globals["banneroperators"] = await get_banner_operators()  # type: ignore
 
     app.update(env.globals)  # type: ignore
