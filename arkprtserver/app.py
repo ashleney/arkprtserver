@@ -28,26 +28,6 @@ routes = aiohttp.web.RouteTableDef()
 env = jinja2.Environment(loader=jinja2.PackageLoader("arkprtserver"), autoescape=True, extensions=["jinja2.ext.do"])
 
 network = arkprts.NetworkSession(default_server="en")
-arkprts.assets.git.LANGUAGE_REPOSITORIES = {
-    "cn": (("Kengxxiao/ArknightsGameData", "ArknightsGameData", "master"), "ArknightsGameData/zh_CN"),
-    "bili": (("Kengxxiao/ArknightsGameData", "ArknightsGameData", "master"), "ArknightsGameData/zh_CN"),
-    "en": (
-        ("ArknightsAssets/ArknightsGameData", "ArknightsAssets_ArknightsGameData", "master"),
-        "ArknightsAssets_ArknightsGameData/en",
-    ),
-    "jp": (
-        ("ArknightsAssets/ArknightsGameData", "ArknightsAssets_ArknightsGameData", "master"),
-        "ArknightsAssets_ArknightsGameData/jp",
-    ),
-    "kr": (
-        ("ArknightsAssets/ArknightsGameData", "ArknightsAssets_ArknightsGameData", "master"),
-        "ArknightsAssets_ArknightsGameData/kr",
-    ),
-    "tw": (
-        ("ArknightsAssets/ArknightsGamedata", "ArknightsAssets_ArknightsGamedata", "master"),
-        "ArknightsAssets_ArknightsGamedata/tw",
-    ),
-}
 client = arkprts.Client(
     assets=arkprts.GitAssets(default_server="en"),
     network=network,
@@ -201,12 +181,16 @@ async def get_banner_operators() -> typing.Mapping[str, typing.Sequence[str]]:
                     key=lambda i: int(arguments["limited"].split(",")[wikioperators.index(i)]),
                     reverse=True,
                 )
+            start = arguments.get("globalstart") or arguments.get("start")
+            end = arguments.get("globalend") or arguments.get("end")
+            if not start or not end:
+                continue
             wikibanners.append(
                 {
                     "type": arguments.get("type", "standard"),
                     "name": arguments["name"],
-                    "start": datetime.datetime.strptime(arguments["globalstart"], "%Y/%m/%d").timestamp(),  # noqa: DTZ007
-                    "end": datetime.datetime.strptime(arguments["globalend"], "%Y/%m/%d").timestamp(),  # noqa: DTZ007
+                    "start": datetime.datetime.strptime(start, "%Y/%m/%d").timestamp(),  # noqa: DTZ007
+                    "end": datetime.datetime.strptime(end, "%Y/%m/%d").timestamp(),  # noqa: DTZ007
                     "operators": wikioperators,
                 },
             )
@@ -265,7 +249,7 @@ async def get_banner_operators() -> typing.Mapping[str, typing.Sequence[str]]:
 async def startup_gamedata(app: aiohttp.web.Application) -> None:
     """Load gamedata."""
     if isinstance(client.assets, arkprts.BundleAssets):
-        await asyncio.gather(*[client.assets.update_assets(server=server) for server in ("en", "jp", "kr", "cn")])
+        await asyncio.gather(*[client.assets.update_assets(server=server) for server in ("en", "cn")])
     else:
         await client.assets.update_assets()
 
