@@ -131,7 +131,7 @@ def get_skill(skill_name: str) -> str:
 def get_asset(*paths: str, ext: str = "png") -> str:
     """Get an asset from the ArknightsAssets repo."""
     path = "/".join(paths) + "." + ext if not any("." in path for path in paths) else "/".join(paths)
-    return f"https://raw.githubusercontent.com/ArknightsAssets/ArknightsAssets/cn/assets/torappu/dynamicassets/{path}"
+    return f"https://raw.githubusercontent.com/ArknightsAssets/ArknightsAssets2/refs/heads/cn/assets/dyn/{path}"
 
 
 env_globals = dict(
