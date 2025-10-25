@@ -28,6 +28,26 @@ routes = aiohttp.web.RouteTableDef()
 env = jinja2.Environment(loader=jinja2.PackageLoader("arkprtserver"), autoescape=True, extensions=["jinja2.ext.do"])
 
 network = arkprts.NetworkSession(default_server="en")
+arkprts.assets.git.LANGUAGE_REPOSITORIES = {
+    "cn": (("Kengxxiao/ArknightsGameData", "ArknightsGameData", "master"), "ArknightsGameData/zh_CN"),
+    "bili": (("Kengxxiao/ArknightsGameData", "ArknightsGameData", "master"), "ArknightsGameData/zh_CN"),
+    "en": (
+        ("ArknightsAssets/ArknightsGameData", "ArknightsAssets_ArknightsGameData", "master"),
+        "ArknightsAssets_ArknightsGameData/en",
+    ),
+    "jp": (
+        ("ArknightsAssets/ArknightsGameData", "ArknightsAssets_ArknightsGameData", "master"),
+        "ArknightsAssets_ArknightsGameData/jp",
+    ),
+    "kr": (
+        ("ArknightsAssets/ArknightsGameData", "ArknightsAssets_ArknightsGameData", "master"),
+        "ArknightsAssets_ArknightsGameData/kr",
+    ),
+    "tw": (
+        ("ArknightsAssets/ArknightsGameData", "ArknightsAssets_ArknightsGameData", "master"),
+        "ArknightsAssets_ArknightsGameData/tw",
+    ),
+}
 client = arkprts.Client(
     assets=arkprts.GitAssets(default_server="en"),
     network=network,
@@ -213,10 +233,7 @@ async def get_banner_operators() -> typing.Mapping[str, typing.Sequence[str]]:
             if wikibanner["name"].lower() == databanner["gachaPoolName"].lower():
                 operators[databanner["gachaPoolId"]] = list(map(_operator_to_id, wikibanner["operators"]))
                 break
-            if (
-                abs(wikibanner["start"] - databanner["openTime"]) < 86400
-                and abs(wikibanner["end"] - databanner["endTime"]) < 86400
-            ):
+            if abs(wikibanner["start"] - databanner["openTime"]) < 86400 and abs(wikibanner["end"] - databanner["endTime"]) < 86400:
                 operators[databanner["gachaPoolId"]] = list(map(_operator_to_id, wikibanner["operators"]))
                 break
 
@@ -457,17 +474,10 @@ async def bundles(request: aiohttp.web.Request) -> aiohttp.web.Response:
     hot_update_list = await network.raw_request("GET", hot_update_list_url)
 
     buttons = " ".join(f'<a href="?server={server}">{server}</a>' for server in ("en", "kr", "jp", "tw", "cn", "bili"))
-    hul_link = (
-        f'<a href="{hot_update_list_url}">hot_update_list.json</a>'
-        f' (version: {version}, client: {client.network.versions[server]["clientVersion"]})'
-    )
+    hul_link = f'<a href="{hot_update_list_url}">hot_update_list.json</a> (version: {version}, client: {client.network.versions[server]["clientVersion"]})'
     html = buttons + "<hr>\n" + hul_link + "<br><br>\n"
     for i in hot_update_list["abInfos"]:
-        url = (
-            client.network.domains[server]["hu"]
-            + f"/Android/assets/{version}/"
-            + arkprts.bundle.asset_path_to_server_filename(i["name"]).replace(".mp4", ".dat")
-        )
+        url = client.network.domains[server]["hu"] + f"/Android/assets/{version}/" + arkprts.bundle.asset_path_to_server_filename(i["name"]).replace(".mp4", ".dat")
         html += f'<a download="{i["name"]}.zip" href="{url}">{i["name"]}</a> ({i["totalSize"] / 2**20:,.2f}MB)</br>\n'
 
     html += "<hr>\n<footer>All links are .zip files containing a single file.</footer>"
