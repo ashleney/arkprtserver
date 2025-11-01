@@ -2,6 +2,7 @@
 
 import asyncio
 import base64
+import collections
 import datetime
 import logging
 import re
@@ -181,7 +182,7 @@ def _operator_to_id(name: str) -> str:
     return "char_002_amiya"
 
 
-async def get_banner_operators() -> typing.Mapping[str, typing.Sequence[str]]:
+async def get_banner_metadata() -> dict[str, typing.Any]:
     """Get a mapping of banner IDs to banner operators. Assumes client has loaded gamedata."""
     pagelocs = ["Headhunting/Banners"] + [f"Headhunting/Banners/Former-{i}" for i in (2025, 2024, 2023, 2022, 2021, 2020)]
     pages = await asyncio.gather(*(_scrape_wikigg(i) for i in pagelocs))
@@ -205,6 +206,7 @@ async def get_banner_operators() -> typing.Mapping[str, typing.Sequence[str]]:
             end = arguments.get("globalend") or arguments.get("end")
             if not start or not end:
                 continue
+            undname = arguments["name"].replace(" ", "_")
             wikibanners.append(
                 {
                     "type": arguments.get("type", "standard"),
@@ -212,17 +214,18 @@ async def get_banner_operators() -> typing.Mapping[str, typing.Sequence[str]]:
                     "start": datetime.datetime.strptime(start, "%Y/%m/%d").timestamp(),  # noqa: DTZ007
                     "end": datetime.datetime.strptime(end, "%Y/%m/%d").timestamp(),  # noqa: DTZ007
                     "operators": wikioperators,
+                    "image": f"https://arknights.wiki.gg/images/thumb/EN_{undname}_banner.png/1024px-EN_{undname}_banner.png",
                 },
             )
 
     databanners = client.assets.get_excel("gacha_table", server="en")["gachaPoolClient"]
 
-    operators: typing.Mapping[str, typing.Sequence[str]] = {}
+    metadata: dict[str, typing.Any] = collections.defaultdict(dict)
     for databanner in databanners:
         if databanner.get("dynMeta") and "base64" in databanner["dynMeta"]:
             databanner["dynMeta"] = bson.loads(base64.b64decode(databanner["dynMeta"]["base64"]))  # pyright: ignore
         if databanner.get("dynMeta") and "main6RarityCharId" in databanner["dynMeta"]:
-            operators[databanner["gachaPoolId"]] = [
+            metadata[databanner["gachaPoolId"]]["operators"] = [
                 databanner["dynMeta"]["main6RarityCharId"],
                 databanner["dynMeta"]["sub6RarityCharId"],
                 *databanner["dynMeta"]["rare5CharList"],
@@ -231,36 +234,39 @@ async def get_banner_operators() -> typing.Mapping[str, typing.Sequence[str]]:
 
         for wikibanner in wikibanners:
             if wikibanner["name"].lower() == databanner["gachaPoolName"].lower():
-                operators[databanner["gachaPoolId"]] = list(map(_operator_to_id, wikibanner["operators"]))
+                metadata[databanner["gachaPoolId"]]["operators"] = list(map(_operator_to_id, wikibanner["operators"]))
+                metadata[databanner["gachaPoolId"]]["image"] = wikibanner["image"]
                 break
             if abs(wikibanner["start"] - databanner["openTime"]) < 86400 and abs(wikibanner["end"] - databanner["endTime"]) < 86400:
-                operators[databanner["gachaPoolId"]] = list(map(_operator_to_id, wikibanner["operators"]))
+                metadata[databanner["gachaPoolId"]]["operators"] = list(map(_operator_to_id, wikibanner["operators"]))
+                metadata[databanner["gachaPoolId"]]["image"] = wikibanner["image"]
                 break
 
-    # special known cases that happen to be missing from the wiki:
-    operators["NORM_EN_0_1_1"] = list(map(_operator_to_id, ["Angelina", "Croissant", "Exusiai", "Skyfire", "Zima"]))
-    operators["NORM_EN_2_0_3"] = list(map(_operator_to_id, ["Hoshiguma", "Liskarm", "Meteorite"]))
-    # operators["NORM_EN_4_0_5"] = # unknown, "Fire Dancers" May 2020
-    operators["NORM_EN_5_0_4"] = list(
-        map(
-            _operator_to_id,
-            [
-                "Ch'en",
-                "SilverAsh",
-                "Eyjafjalla",
-                "Angelina",
-                "Swire",
-                "Manticore",
-                "Platinum",
-                "Texas",
-                "Croissant",
-                "Ptilopsis",
-            ],
-        ),
-    )  # fmt: off
-    operators["SINGLE_EN_27_0_1"] = list(map(_operator_to_id, ["Hoederer"]))
+    # # special known cases that happen to be missing from the wiki:
+    # operators["NORM_EN_0_1_1"] = list(map(_operator_to_id, ["Angelina", "Croissant", "Exusiai", "Skyfire", "Zima"]))
+    # operators["NORM_EN_2_0_3"] = list(map(_operator_to_id, ["Hoshiguma", "Liskarm", "Meteorite"]))
+    # # operators["NORM_EN_4_0_5"] = # unknown, "Fire Dancers" May 2020
+    # operators["NORM_EN_5_0_4"] = list(
+    #     map(
+    #         _operator_to_id,
+    #         [
+    #             "Ch'en",
+    #             "SilverAsh",
+    #             "Eyjafjalla",
+    #             "Angelina",
+    #             "Swire",
+    #             "Manticore",
+    #             "Platinum",
+    #             "Texas",
+    #             "Croissant",
+    #             "Ptilopsis",
+    #         ],
+    #     ),
+    # )  # fmt: off
+    # operators["SINGLE_EN_27_0_1"] = list(map(_operator_to_id, ["Hoederer"]))
 
-    return operators
+
+    return metadata
 
 
 async def startup_gamedata(app: aiohttp.web.Application) -> None:
@@ -273,7 +279,7 @@ async def startup_gamedata(app: aiohttp.web.Application) -> None:
     env.globals["announcements"] = await client.network.request("an")  # type: ignore
     # env.globals["preannouncement"] = await client.network.request("prean")  # type: ignore
     env.globals["preannouncement"] = []  # type: ignore
-    env.globals["banneroperators"] = await get_banner_operators()  # type: ignore
+    env.globals["bannermetadata"] = await get_banner_metadata()  # type: ignore
 
     app.update(env.globals)  # type: ignore
 

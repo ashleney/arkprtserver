@@ -244,11 +244,15 @@
                 <div>
                     {% set static = gamedata.gacha_table.gacha_pool_client | selectattr('gachaPoolId', 'equalto',
                     bannerid) | first %}
+                    {% set bm = bannermetadata.get(bannerid) or {"operators": [], "image": ""} %}
 
                     [{{ datetime.datetime.fromtimestamp(static.open_time).strftime('%Y-%m-%d') }} - {{
                     datetime.datetime.fromtimestamp(static.end_time).strftime('%Y-%m-%d') }}]
                     <b>{{ banner.cnt }}</b> pulls
-                    {% for charid in (banneroperators.get(bannerid) or []) %}
+                    {% if bm["image"] %}
+                    <img src="{{ bm['image'] }}" style="height: 50px">
+                    {% endif %}
+                    {% for charid in bm["operators"] %}
                     {% set charstatic = gamedata.get_operator(charid) %}
                     {% if charstatic.rarity[-1] == "6" %}
                     <a href="https://arknights.wiki.gg/wiki/{{ charstatic.name.replace(' ', '_') }}">
