@@ -470,20 +470,32 @@ async def bundles(request: aiohttp.web.Request) -> aiohttp.web.Response:
     server = request.query.get("server", "cn")
     if server not in ("en", "kr", "jp", "tw", "cn", "bili"):
         return aiohttp.web.Response(text="Unknown server", status=400)
+    platform = request.query.get("platform", "Android")
+    if platform not in ("Android", "IOS", "Windows"):
+        return aiohttp.web.Response(text="Unknown platform", status=400)
+
+
+    server_buttons = " ".join(f'<a href="?server={server}&platform={platform}">{server}</a>' for server in ("en", "kr", "jp", "tw", "cn", "bili"))
+    platform_buttons = " ".join(f'<a href="?server={server}&platform={platform}">{platform}</a>' for platform in ("Android", "IOS",  "Windows"))
+    buttons_html = server_buttons + "<br>" + platform_buttons + f"<br> selected: {server} {platform}"
 
     version = request.query.get("version")
     if version is None:
-        await client.network.load_version_config(server)
-        version = client.network.versions[server]["resVersion"]
+        try:
+            await client.network.load_version_config(server, platform)
+        except aiohttp.ClientResponseError as e:
+            if e.code == 404:
+                return aiohttp.web.Response(text=buttons_html + "<hr>\n404 Not Found", content_type="text/html")
+            raise
+        version = client.network.versions[(server, platform)]["resVersion"]
 
-    hot_update_list_url = client.network.domains[server]["hu"] + f"/Android/assets/{version}/hot_update_list.json"
+    hot_update_list_url = client.network.domains[server]["hu"] + f"/{platform}/assets/{version}/hot_update_list.json"
     hot_update_list = await network.raw_request("GET", hot_update_list_url)
 
-    buttons = " ".join(f'<a href="?server={server}">{server}</a>' for server in ("en", "kr", "jp", "tw", "cn", "bili"))
-    hul_link = f'<a href="{hot_update_list_url}">hot_update_list.json</a> (version: {version}, client: {client.network.versions[server]["clientVersion"]})'
-    html = buttons + "<hr>\n" + hul_link + "<br><br>\n"
+    hul_link = f'<a href="{hot_update_list_url}">hot_update_list.json</a> (version: {version}, client: {client.network.versions[(server, platform)]["clientVersion"]})'
+    html = buttons_html + "<hr>\n" + hul_link + "<br><br>\n"
     for i in hot_update_list["abInfos"]:
-        url = client.network.domains[server]["hu"] + f"/Android/assets/{version}/" + arkprts.bundle.asset_path_to_server_filename(i["name"]).replace(".mp4", ".dat")
+        url = client.network.domains[server]["hu"] + f"/{platform}/assets/{version}/" + arkprts.bundle.asset_path_to_server_filename(i["name"]).replace(".mp4", ".dat")
         html += f'<a download="{i["name"]}.zip" href="{url}">{i["name"]}</a> ({i["totalSize"] / 2**20:,.2f}MB)</br>\n'
 
     html += "<hr>\n<footer>All links are .zip files containing a single file.</footer>"
